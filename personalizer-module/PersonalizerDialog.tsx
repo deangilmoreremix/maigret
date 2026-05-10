@@ -61,6 +61,8 @@ export default function PersonalizerDialog({
   const [error, setError] = useState('');
   const [output, setOutput] = useState(null);
   const [project, setProject] = useState(null);
+  const [deepLink, setDeepLink] = useState('');
+  const [sendStatus, setSendStatus] = useState('');
 
   useEffect(() => {
     if (open && projectId) {
@@ -151,7 +153,7 @@ export default function PersonalizerDialog({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ projectId: project?.id, output })
+        body: JSON.stringify({ projectId: project?.id })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Save failed');
@@ -159,6 +161,26 @@ export default function PersonalizerDialog({
       setCurrentStep(7);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleSendToApp = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/personalizer/send-to-app', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ projectId: project?.id, appId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Send to app failed');
+      setDeepLink(data.deepLink);
+      setSendStatus('success');
+    } catch (err: any) {
+      setSendStatus(`Error: ${err.message}`);
     }
   };
 
@@ -242,6 +264,12 @@ export default function PersonalizerDialog({
                   <option value="sales-page">Sales Page</option>
                 </select>
               </div>
+              <button
+                onClick={() => setCurrentStep(2)}
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold"
+              >
+                Next
+              </button>
             </div>
           )}
 
@@ -265,6 +293,20 @@ export default function PersonalizerDialog({
                   placeholder="Acme Inc."
                 />
               </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
 
@@ -278,7 +320,49 @@ export default function PersonalizerDialog({
               >
                 {isScanning ? 'Scanning...' : 'Run Public Scan'}
               </button>
-              <p className="text-xs text-gray-400">Uses GitHub API only. LinkedIn/Twitter checks are coming soon.</p>
+              <p className="text-xs text-gray-400">Uses Maigret worker (if configured) or GitHub API. LinkedIn/Twitter checks coming soon.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold"
+                >
+                  Skip / Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 4 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Manual Notes</label>
+                <textarea
+                  value={manualNotes}
+                  onChange={(e) => setManualNotes(e.target.value)}
+                  className="w-full bg-gray-800/50 border border-purple-500/30 rounded-lg p-2 text-white h-32"
+                  placeholder="Add any manual notes about the target..."
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(5)}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
 
@@ -289,6 +373,7 @@ export default function PersonalizerDialog({
                 <p className="text-sm text-gray-300">Target: {targetName}</p>
                 <p className="text-sm text-gray-300">Mode: {mode}</p>
                 <p className="text-sm text-gray-300">Tone: {defaultTone}</p>
+                {project?.scan_id && <p className="text-sm text-emerald-300">Scan data included</p>}
               </div>
               <button
                 onClick={handleGenerate}
@@ -297,6 +382,12 @@ export default function PersonalizerDialog({
               >
                 {isGenerating ? 'Generating...' : 'Generate Content'}
               </button>
+              <button
+                onClick={() => setCurrentStep(4)}
+                className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+              >
+                Back
+              </button>
             </div>
           )}
 
@@ -304,13 +395,96 @@ export default function PersonalizerDialog({
             <div className="space-y-4">
               <h3 className="text-lg text-white">Generated Output</h3>
               <div className="bg-gray-800/50 p-4 rounded-lg max-h-96 overflow-y-auto">
-                <pre className="text-sm text-gray-200 whitespace-pre-wrap">{JSON.stringify(output, null, 2)}</pre>
+                <pre className="text-sm text-gray-200 whitespace-pre-wrap">{typeof output.content === 'string' ? output.content : JSON.stringify(output.content, null, 2)}</pre>
               </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCurrentStep(5)}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white font-semibold"
+                >
+                  Save Output
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 7 && (
+            <div className="space-y-4">
+              <h3 className="text-lg text-white">Project Saved</h3>
+              <p className="text-sm text-gray-300">Your project has been saved successfully.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setCurrentStep(6)}
+                  className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(8)}
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-semibold"
+                >
+                  Proceed to Send to App
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 8 && (
+            <div className="space-y-4">
+              <h3 className="text-lg text-white">Send to App</h3>
+              <div className="bg-gray-800/50 p-4 rounded-lg">
+                <p className="text-sm text-gray-300">Output Content:</p>
+                <pre className="text-sm text-gray-200 whitespace-pre-wrap mt-2">{typeof output?.content === 'string' ? output.content : JSON.stringify(output?.content, null, 2)}</pre>
+              </div>
+              {deepLink ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-300">Deep Link:</p>
+                  <a href={deepLink} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline break-all">
+                    {deepLink}
+                  </a>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(deepLink);
+                      setSendStatus('Deep link copied to clipboard!');
+                    }}
+                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-white text-sm"
+                  >
+                    Copy Deep Link
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSendToApp}
+                  className="px-6 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-lg text-white font-semibold"
+                >
+                  Generate Deep Link
+                </button>
+              )}
+              {sendStatus && (
+                <p className={`text-sm ${sendStatus.includes('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
+                  {sendStatus}
+                </p>
+              )}
               <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-white"
+                onClick={() => {
+                  navigator.clipboard.writeText(typeof output?.content === 'string' ? output.content : JSON.stringify(output?.content, null, 2));
+                  setSendStatus('Output copied to clipboard!');
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-white text-sm"
               >
-                Save Output
+                Copy Output Content
+              </button>
+              <button
+                onClick={() => setCurrentStep(7)}
+                className="px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg text-white font-semibold"
+              >
+                Back
               </button>
             </div>
           )}
@@ -336,9 +510,20 @@ export default function PersonalizerDialog({
           </div>
           {output && (
             <div className="mt-6 pt-4 border-t border-purple-500/20">
-              <h4 className="text-sm text-gray-300 mb-2">Send to App</h4>
-              <button className="w-full p-2 bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg text-sm text-cyan-200">
+              <h4 className="text-sm text-gray-300 mb-2">Quick Actions</h4>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(typeof output.content === 'string' ? output.content : JSON.stringify(output.content, null, 2));
+                }}
+                className="w-full p-2 bg-cyan-600/30 hover:bg-cyan-600/40 rounded-lg text-sm text-cyan-200 mb-2"
+              >
                 Copy to Clipboard
+              </button>
+              <button
+                onClick={() => setCurrentStep(8)}
+                className="w-full p-2 bg-purple-600/30 hover:bg-purple-600/40 rounded-lg text-sm text-purple-200"
+              >
+                Send to App
               </button>
             </div>
           )}
